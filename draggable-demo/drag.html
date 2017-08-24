@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+	<style type="text/css">
+		.left-box,
+		.right-box {
+			width: 200px;
+			min-height: 250px;
+			border: 1px solid red;
+		}
+
+		.left-box {
+			border-right: none;
+		}
+			
+		.left-box > div,
+		.right-box > div {
+			width: 200px;
+			height: 60px;
+			border: 1px solid green;
+		}
+
+		.fl {
+			float: left;
+		}
+
+		.fr {
+			float: right;
+		}
+
+		.clear {
+			clear: both;
+		}
+
+		.hide {
+			display: none;
+		}
+	</style>
+	<script type="text/javascript" src="jquery.min.js">
+	</script>
+	<script type="text/javascript">
+		function allowDrop(e) {
+			e.preventDefault();
+		}
+
+		function drag(e) {
+			e.dataTransfer.setData("flag", e.target.className);
+			$('.' + e.target.className).fadeOut("3000");
+		}
+
+		function drop(e) {
+			e.preventDefault();
+			var data = e.dataTransfer.getData("flag"),
+				$curDom = $(e.target),
+				$moveDom;
+
+			$moveDom = $('.' + data);
+
+			if ($curDom.children('div').length == 0 && e.target.className.indexOf('in-box') != -1) {
+				$curDom.before($moveDom);
+			} else {
+				$curDom.append($moveDom);
+			}
+
+			$moveDom.fadeIn(3000);
+		}
+	</script>
+</head>
+<body>
+	<div class="wrap-box">
+		<div class="left-box fl" ondrop="drop(event)" ondragover="allowDrop(event)">
+			<div class="lin-box1" draggable="true" ondragstart="drag(event)">1</div>
+			<div class="lin-box2" draggable="true" ondragstart="drag(event)">2</div>
+			<div class="lin-box3" draggable="true" ondragstart="drag(event)">3</div>
+			<div class="lin-box4" draggable="true" ondragstart="drag(event)">4</div>
+		</div>
+		<div class="right-box fl" ondrop="drop(event)" ondragover="allowDrop(event)">
+			<div class="rin-box1" draggable="true" ondragstart="drag(event)">5</div>
+			<div class="rin-box2" draggable="true" ondragstart="drag(event)">6</div>
+			<div class="rin-box3" draggable="true" ondragstart="drag(event)">7</div>
+			<div class="rin-box4" draggable="true" ondragstart="drag(event)">8</div>
+		</div>
+		<div class="clear"></div>
+	</div>
+</body>
+</html>
