@@ -1,0 +1,310 @@
+安装文件目录： /iflytek/CDHInstall
+密码：         hinkbig1
+
+一、集群系统环境准备
+１、hostname配置
+vi /etc/sysconfig/network
+HOSTNAME= 每台机器给出不同机器名
+
+修改主机IP地址
+vi /etc/sysconfig/network-scripts/ifcfg-eth0
+DEVICE="eth0"
+BOOTPROTO=static       //注意
+IPV6INIT="yes"
+NM_CONTROLLED="yes"
+ONBOOT="yes"
+#TYPE="Ethernet"       //注意
+UUID="001ace39-98ec-4df8-b4a2-0be195106c85"
+
+IPADDR=192.168.4.124
+GATEWAY=192.168.4.1
+NATMASK=255.255.255.0
+DNS1=192.168.75.14
+DNS2=192.168.59.228
+
+2、hosts文件修改
+(1)、修改集群内所有机器/etc/hosts 文件
+vi /etc/hosts
+192.168.58.93 cdh1
+192.168.58.94 cdh2
+192.168.58.95 cdh3
+
+(2)、修改/etc/selinux/config 文件
+vi /etc/selinux/config
+SELINUX=disabled
+
+3、检查系统
+(1)、查看防火墙是否运行
+service iptables status
+(2)、关闭防火墙
+service iptables stop
+(3)、永久性生效，重启后不会复原
+chkconfig iptables off
+
+
+二、JDK安装
+1、检查是否安装，安装了就卸载
+(1)、查看已安装版本
+java -version
+
+(2)、查看相关安装包
+rpm -qa | grep openjdk
+
+(3)、卸载系统自带 JDK 安装包
+rpm -e --nodeps java-1.6.0-openjdk-1.6.0.35-1.13.7.1.el6_6.x86_64
+rpm -e --nodeps java-1.7.0-openjdk-1.7.0.79-2.5.5.4.el6.x86_64
+
+2、复制安装包
+scp root@192.168.58.93:/lemon/package/jdk-7u80-linux-x64.tar.gz  /lemon/package/jdk-7u80-linux-x64.tar.gz
+
+3、解压到指定目录：/usr/java
+tar -zxvf /iflytek/CDHInstall/jdk-7u80-linux-x64.tar.gz  -C/usr/java
+chown -R root /usr/java/jdk1.7.0_80
+
+4、配置环境变量，修改/etc/profile 文件增加以下内容
+vi /etc/profile
+export JAVA_HOME=/usr/java/jdk1.7.0_80
+export PATH=$JAVA_HOME/bin:$PATH
+export CLASSPATH=.:$JAVA_HOME/lib/dt.jar:$JAVA_HOME/lib/tools.jar:$JAVA_HOME/jre/lib/rt.jar
+
+5、生效 profile(或重启机器)
+source /etc/profile
+
+6、检查是否安装成功 ：终端输入 java -version
+java -version
+
+
+三、MySql安装
+1、删除系统自带版本
+(1)、检查当前系统是否已安装
+rpm -qa | grep -i mysql
+(2)、删除已经安装
+rpm -e --nodeps mysql-libs-5.1.73-5.el6_6.x86_64
+
+2、添加 mysql  组和  mysql 用户
+groupadd mysql                  //添加用户组
+useradd -r -g mysql mysql       // -r 参数表示 mysql 用户是系统用户，不可用于登录系统。
+3、解压安装  
+(1)、解压到指定的安装目录，我们这里指定为/usr/local
+tar -zxvf /iflytek/CDHInstall/mysql-5.5.50-linux2.6-x86_64.tar.gz -C/usr/local
+
+(2)、为mysql-5.5.50-linux2.6-x86_64创建快捷方式mysql，方便输入
+cd /usr/local
+ln -s mysql-5.5.50-linux2.6-x86_64/ mysql        mysql-5.5.50-linux2.6-x86_64
+
+(3)、更改 mysql 所在的目录所属的组和用户,为之前创建的 mysql 用户
+chown -R mysql  /usr/local/mysql-5.5.50-linux2.6-x86_64
+chgrp -R mysql /usr/local/mysql-5.5.50-linux2.6-x86_64
+chown -R mysql mysql
+chgrp -R mysql mysql
+
+4、数据库初始化
+(1)、执行 mysql_install_db 脚本， 对 mysql 中的 data 目录进行初始化并创建一些系统表格
+/usr/local/mysql/scripts/mysql_install_db  --user=mysql  --basedir=/usr/local/mysql  --datadir=/usr/local/mysql/data
+
+/home/lemon/software/mysql/scripts/mysql_install_db  --user=mysql  --basedir=/home/lemon/software/mysql --datadir=/home/lemon/software/mysql/data
+
+(2)、将mysql/目录下除了data/目录的所有文件， 改回root 用户所有， mysql用户只需作为 mysql/data/目录下所有文件的所有者
+chown -R root /usr/local/mysql-5.5.50-linux2.6-x86_64
+chown -R mysql /usr/local/mysql-5.5.50-linux2.6-x86_64/data
+
+(3)、复制配置文件到/etc/my.cnf
+cp /usr/local/mysql/support-files/my-medium.cnf /etc/my.cnf
+
+5、设置开机自启动项
+(1)、首先需要将scripts/mysql.server服务脚本复制到/etc/init.d/， 并重命名为mysqld
+cp /usr/local/mysql/support-files/mysql.server /etc/init.d/mysqld
+
+(2)、通过 chkconfig 命令将 mysqld 服务加入到自启动服务项中
+chkconfig  --add mysqld
+
+(3)、查看是否添加成功:chkconfig --list mysqld
+chkconfig --list mysqld
+
+(4)、直接手动启动mysql服务
+service mysqld start
+
+6、添加系统环境变量
+(1)、vi /etc/profile
+export MYSQL_HOME=/usr/local/mysql
+export PATH=$PATH:$MYSQL_HOME/bin
+
+(2)、profile 生效，执行命令 source /etc/profile（当前终端生效）
+source /etc/profile
+
+7、修改root用户密码
+mysql
+use mysql;
+UPDATE user SET password=PASSWORD('hadoop') WHERE user='root';
+FLUSH PRIVILEGES;
+
+备注:这一步结束，重启所有主机
+
+
+四、配置SSH
+1、生成公钥、私钥  （所有结点）
+ssh-keygen -t rsa -P ''
+
+2、收集所有公钥写入 authorized_keys
+(1)、在 cdh1 上，新建 authorized_keys 文件, 并修改权限为 600
+touch /root/.ssh/authorized_keys
+chmod 600 /root/.ssh/authorized_keys   
+
+(2)、分别复件 cdh2 cdh3 密钥文件到 cdh1
+scp /root/.ssh/id_rsa.pub root@192.168.58.93:/root/.ssh/cdh2_id_rsa.pub       // cdh2机器上执行  
+scp /root/.ssh/id_rsa.pub root@192.168.58.93:/root/.ssh/cdh3_id_rsa.pub       // cdh3机器上执行 
+
+(3)、将复制来的密钥添加到 authorized_keys
+cat /root/.ssh/id_rsa.pub >> /root/.ssh/authorized_keys
+cat /root/.ssh/cdh2_id_rsa.pub >> /root/.ssh/authorized_keys
+cat /root/.ssh/cdh3_id_rsa.pub >> /root/.ssh/authorized_keys
+
+3、分发authorized_keys  到集群内节点
+scp /root/.ssh/authorized_keys root@192.168.58.94:/root/.ssh/authorized_keys
+scp /root/.ssh/authorized_keys root@192.168.58.95:/root/.ssh/authorized_keys
+
+4、测试配置是否成功
+ssh 192.168.58.93
+
+若安装失败，删除已安装的公钥私钥
+rm -rf /root/.ssh
+
+五、 安装ntp服务
+1、安装ntp服务
+(1)、查看是否已经安装
+rpm -qa | grep ntp  yum install ntp
+
+(2)、如果没安装，使用： yum install ntp 安装
+yum install ntp
+2、设置开机启动
+chkconfig ntpd on
+service ntpd start
+
+3、修改/etc/ntp.conf
+vi /etc/ntp.conf
+(1)、将restrict default kod nomodify notrap nopeer noquery 注释掉
+     添加， restrict default nomodify notrust（允许任何 IP 的客户机都可以进行时间同步）
+	 restrict default nomodify notrust
+(2)、注释掉所有的  trustedkey
+     添加 trustedkey 1 2 3
+server 192.168.58.93 prefer		  //局域网（GA网）内，客户机（slaver）配置为集群内master 服务器IP
+#server ntp.api.bz				  //连接不了外网就注释掉
+#server 2.centos.pool.ntp.org     // 连接不了外网就注释掉
+
+服务端配置
+server 127.127.1.0     #local clock           //服务端如果连接不了外网，使用本地时间提供给客户端同步
+fudge 127.127.1.0 stratum 2
+
+4、修改/etc/ntp/keys文件（集群内所在节点）
+vi /etc/ntp/keys
+1 M gao
+2 M tian
+3 M di
+
+5、修改时区
+rm -f /etc/localtime
+cp -f /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
+6、重启ntp服务
+service ntpd restart
+
+7、测试是否成功
+手动在集群内所客户端系统上执行 ntpdate 192.168.58.93
+ntpdate -u 192.168.58.93
+
+成功返回：ntpdate[15522]: adjust time server 192.168.84.29 offset 0.290456 sec
+
+错误 the NTP socket is in use, exiting
+查看进程
+lsof -i:123
+杀掉进程
+kill -9 pid
+
+
+重启
+六 安装  Cloudera Manager 
+1、解压到/opt目录
+tar -zxvf /iflytek/CDHInstall/CDH5.4.5/cloudera-manager-el6-cm5.4.5_x86_64.tar.gz -C/opt
+
+2、添加MySql驱动
+cp /iflytek/CDHInstall/mysql-connector-java-5.1.25.jar /opt/cm-5.4.5/share/cmf/lib/
+
+3、给所有节点添加cloudera-scm用户  所有结点都需要执行
+useradd --system --home=/opt/cm-5.4.5/run/cloudera-scm-server --no-create-home --shell=/bin/false --comment "Cloudera SCM User" cloudera-scm
+
+4、修改cloudera-scm-agent配置
+vi /opt/cm-5.4.5/etc/cloudera-scm-agent/config.ini
+server_host=cdh1  你的名字节点的主机名
+
+5、初始化MySql数据库
+mysql -uroot -phadoop
+--hive  数据库
+create database hive DEFAULT CHARSET  utf8 COLLATE utf8_general_ci;
+-- 集群监控数据库
+create database amon DEFAULT CHARSET utf8 COLLATE utf8_general_ci;
+--hue  数据库
+create database hue DEFAULT CHARSET utf8 COLLATE utf8_general_ci;
+--oozie  数据库
+create database  oozie DEFAULT CHARSET utf8 COLLATE utf8_general_ci;
+检查新建的数据库
+mysql
+show databases;
+
+grant all on *.* to root@"%" Identified by "hadoop";
+
+UPDATE mysql.user SET Grant_priv='Y', Super_priv='Y' WHERE User='root';
+FLUSH PRIVILEGES;
+
+6、为Cloudera Manager 5建立数据库
+/opt/cm-5.4.5/share/cmf/schema/scm_prepare_database.sh mysql cm -hcdh1 -uroot -phadoop --scm-host cdh1 scm scm scm
+
+7、开启Cloudera Manager 5 Server 端
+/opt/cm-5.4.5/etc/init.d/cloudera-scm-server start
+
+8、开启Cloudera Manager 5 Agents 端
+--- 将主节点 /opt/cm-5.4.5 集群内分发
+scp -r /opt/cm-5.4.5 root@192.168.58.94:/opt
+scp -r /opt/cm-5.4.5 root@192.168.58.95:/opt
+
+--有目录就忽略
+mkdir /opt/cm-5.4.5/run/cloudera-scm-agent
+
+在所有 datanode  节点上，启动（注意必须以管理员权限启动）
+sudo /opt/cm-5.4.5/etc/init.d/cloudera-scm-agent start
+
+--sudo /opt/cm-5.4.5/etc/init.d/cloudera-scm-agent stop
+--sudo /opt/cm-5.4.5/etc/init.d/cloudera-scm-agent restart
+
+10、浏览器 登录  Cloudera Manager 5  控制台
+http://192.168.58.93:7180/cmf/login
+
+七、安装CDH5（master）
+1、  制作 CDH 本地 安装源
+cp /iflytek/CDHInstall/CDH5.4.5/CDH-5.4.5-1.cdh5.4.5.p0.7-el6.parcel /opt/cloudera/parcel-repo
+cp /iflytek/CDHInstall/CDH5.4.5/manifest.json /opt/cloudera/parcel-repo
+cp /iflytek/CDHInstall/CDH5.4.5/CDH-5.4.5-1.cdh5.4.5.p0.7-el6.parcel.sha1 /opt/cloudera/parcel-repo
+cp /iflytek/CDHInstall/CDH5.4.5/CDH-5.4.5-1.cdh5.4.5.p0.7-el6.parcel.sha1 /opt/cloudera/parcel-repo/CDH-5.4.5-1.cdh5.4.5.p0.7-el6.parcel.sha
+
+2、重启 cloudera-scm-server 以识别安装源
+sudo  /opt/cm-5.4.5/etc/init.d/cloudera-scm-server restart
+--sudo  /opt/cm-5.4.5/etc/init.d/cloudera-scm-server start
+
+
+
+八、安装CDH遇到的问题解决
+1、检测不通过
+(1)、
+echo 0 > /proc/sys/vm/swappiness
+
+(2)、
+echo never > /sys/kernel/mm/transparent_hugepage/defrag
+echo 'echo never > /sys/kernel/mm/transparent_hugepage/defrag' >> /etc/rc.local
+
+2、群集设置---遇到的问题
+(1)、正在创建 Hive Metastore 数据库表  失败
+cp /iflytek/CDHInstall/mysql-connector-java-5.1.25.jar /opt/cloudera/parcels/CDH-5.4.5-1.cdh5.4.5.p0.7/lib/hive/lib
+
+(2)、Oozie  安装创建数据表找不到驱动
+cp /iflytek/CDHInstall/mysql-connector-java-5.1.25.jar /var/lib/oozie
+
+
